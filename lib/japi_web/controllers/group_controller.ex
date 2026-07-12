@@ -8,12 +8,13 @@ defmodule JapiWeb.GroupController do
     json(conn, %{group: g})
   end
 
-  def request(%Plug.Conn{assigns: %{:groupId => groupId}} = conn, %{"userId" => uid}) do
-    case Japi.Groups.hold_group(groupId, uid) do
+  # Handle hold request with optional priority
+  defp handle_hold_request(conn, groupId, userId, priority \\ 1) do
+    case Japi.Groups.hold_group(groupId, userId, priority) do
       :ok ->
         conn
         |> put_status(200)
-        |> json(%{message: "Floor obtained by #{uid} for group #{groupId}"})
+        |> json(%{message: "Floor obtained by #{userId} for group #{groupId}"})
 
       {:error, {:invalid_hold, _err}} ->
         conn
@@ -24,10 +25,20 @@ defmodule JapiWeb.GroupController do
     end
   end
 
+  def request(%Plug.Conn{assigns: %{:groupId => groupId}} = conn, %{
+        "userId" => uid,
+        "priority" => priority
+      })
+      when is_integer(priority) do
+    handle_hold_request(conn, groupId, uid, priority)
+  end
+
+  def request(%Plug.Conn{assigns: %{:groupId => groupId}} = conn, %{"userId" => uid}) do
+    handle_hold_request(conn, groupId, uid)
+  end
+
   # Request to hold without uid
   def request(conn, _params) do
-    IO.puts("Hello")
-
     conn
     |> put_status(400)
     |> json(%{message: "Invalid request: userId is required"})
@@ -62,7 +73,7 @@ defmodule JapiWeb.GroupController do
 
       {:error, {_, msg}} ->
         conn
-        |> put_status(509)
+        |> put_status(500)
         |> json(%{message: msg})
         |> halt()
     end

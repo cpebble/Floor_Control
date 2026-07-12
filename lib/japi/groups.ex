@@ -31,6 +31,10 @@ defmodule Japi.Groups do
 
   def start_groups([]), do: :ok
 
+  def delete_group(group_id) do
+    GenServer.cast(Japi.Groups.Server, {:delete_group, group_id})
+  end
+
   def list_groups do
     GenServer.call(Japi.Groups.Server, :list)
   end
@@ -43,9 +47,10 @@ defmodule Japi.Groups do
     GenServer.call(Japi.Groups.Server, {:check_group, group_id})
   end
 
-  def hold_group(group_id, user_id) do
-    GenServer.call(Japi.Groups.Server, {:hold_group, group_id, user_id})
+  def hold_group(group_id, user_id, priority \\ 1) do
+    GenServer.call(Japi.Groups.Server, {:hold_group, group_id, user_id, priority})
   end
+
   def release_group(group_id, user_id) do
     GenServer.call(Japi.Groups.Server, {:release_group, group_id, user_id})
   end
@@ -116,8 +121,8 @@ defmodule Japi.Groups.Server do
   end
 
   @impl true
-  def handle_call({:hold_group, gid, uid}, _from, state) do
-    case Japi.Groups.Group.hold(via(gid), uid) do
+  def handle_call({:hold_group, gid, uid, priority}, _from, state) do
+    case Japi.Groups.Group.hold(via(gid), uid, priority) do
       :ok -> {:reply, :ok, state}
       :invalid -> {:reply, {:error, {:invalid_hold, "Couldn't get hold"}}, state}
     end
@@ -129,7 +134,16 @@ defmodule Japi.Groups.Server do
       :ok -> {:reply, :ok, state}
       :invalid -> {:reply, {:error, {:invalid_release, "User doesn't hold group"}}, state}
     end
+  end
 
+  @impl true
+  def handle_cast({:delete_group, group_id}, state) do
+    # Stop agent
+    Agent.stop(via(group_id), :normal)
+    # Free up name st. it can be used again
+    Registry.unregister(Japi.Groups.Registry, group_id)
+    # Remove from map
+    {:noreply, MapSet.delete(state, group_id)}
   end
 
   @impl true
@@ -146,7 +160,15 @@ defmodule Japi.Groups.Group do
 
   defmodule Group do
     @derive {Jason.Encoder, only: [:held_by]}
-    defstruct held_by: nil
+    defstruct held_by: nil, priority: 1
+  end
+
+  def child_spec(arg) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [arg]},
+      restart: :transient
+    }
   end
 
   def start_link(opts) do
@@ -157,11 +179,19 @@ defmodule Japi.Groups.Group do
     Agent.get(pid, & &1)
   end
 
-  def hold(pid, uid) do
+  def hold(pid, uid, priority) do
     updatef = fn
-      %Group{held_by: nil} -> {:ok, %Group{held_by: uid}}
-      %Group{held_by: uid_} when uid_ == uid -> {:ok, %Group{held_by: uid}}
-      group -> {:invalid, group}
+      %Group{held_by: nil} ->
+        {:ok, %Group{held_by: uid, priority: priority}}
+
+      %Group{held_by: uid_} when uid_ == uid ->
+        {:ok, %Group{held_by: uid, priority: priority}}
+
+      %Group{priority: p} when priority > p ->
+        {:ok, %Group{held_by: uid, priority: priority}}
+
+      group ->
+        {:invalid, group}
     end
 
     Agent.get_and_update(pid, updatef)

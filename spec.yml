@@ -7,6 +7,113 @@ servers:
   - url: http://localhost:8080
     description: Local dev server
 paths:
+  /groups:
+    get:
+      summary: List floors
+      description: Get a list of groups currently active
+      operationId: indexGroups
+      tags:
+        - Group Control
+      responses:
+        '200':
+          description: A list of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /groups/{groupId}:
+    get:
+      summary: Get the group info
+      description: Very similar to `/groups/{groupId}/floor`
+      operationId: queryGroup
+      tags:
+        - Group Control
+      parameters:
+        - name: groupId
+          in: path
+          description: The ID of the group for which to obtain the floor.
+          required: true
+          schema:
+            type: string
+            example: "group-alpha-123"
+      responses:
+        '200':
+          description: Info on the group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a group
+      description: Create a group with the given `groupId` as name
+      operationId: createGroup
+      tags:
+        - Group Control
+      parameters:
+        - name: groupId
+          in: path
+          description: The ID of the group for which to obtain the floor.
+          required: true
+          schema:
+            type: string
+            example: "group-alpha-123"
+      responses:
+        '201':
+          description: Group was created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          description: Group already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete the group
+      description: Try to delete the group `groupId`
+      operationId: deleteGroup
+      tags:
+        - Group Control
+      parameters:
+        - name: groupId
+          in: path
+          description: The ID of the group for which to obtain the floor.
+          required: true
+          schema:
+            type: string
+            example: "group-alpha-123"
+      responses:
+        '200':
+          description: Group was scheduled for deletion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Group group-alpha-123 scheduled for deletion"
+        '404':
+          description: Group Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /groups/{groupId}/floor:
     get:
       summary: Get the floor holder
@@ -28,7 +135,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
+                type: object
+                properties:
+                  group:
+                    $ref: '#/components/schemas/Group'
     post:
       summary: Obtain the Floor (Push to Talk)
       description: Allows a user to request and obtain the "floor" for a specified radio group. Only one user can hold the floor at a time.
@@ -44,7 +154,7 @@ paths:
             type: string
             example: "group-alpha-123"
       requestBody:
-        description: User ID requesting the floor.
+        description: UserRequest for the floor requesting the floor.
         required: true
         content:
           application/json:
@@ -133,6 +243,10 @@ components:
           type: string
           description: The unique identifier for the user.
           example: "user-456"
+        priority:
+          type: integer
+          description: The priority for the holder
+          example: 1
     ErrorResponse:
       type: object
       properties:

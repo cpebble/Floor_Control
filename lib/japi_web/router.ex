@@ -12,6 +12,7 @@ defmodule JapiWeb.Router do
     get "/", FloorController, :index
     get "/:groupId", FloorController, :details
     post "/:groupId", FloorController, :create
+    delete "/:groupId", FloorController, :delete
 
     
     # Interacting with a group
