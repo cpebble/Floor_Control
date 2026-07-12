@@ -9,16 +9,16 @@ defmodule JapiWeb.Router do
     pipe_through :api
 
     # Listing/Adding groups
-    get "/", FloorController, :index
-    get "/:groupId", FloorController, :details
-    post "/:groupId", FloorController, :create
-    delete "/:groupId", FloorController, :delete
+    get "/", GroupController, :index
+    get "/:groupId", GroupController, :details
+    post "/:groupId", GroupController, :create
+    delete "/:groupId", GroupController, :delete
 
     
     # Interacting with a group
-    get "/:groupId/floor", GroupController, :index
-    post "/:groupId/floor", GroupController, :request
-    delete "/:groupId/floor/:userId", GroupController, :release
+    get "/:groupId/floor", FloorController, :index
+    post "/:groupId/floor", FloorController, :request
+    delete "/:groupId/floor/:userId", FloorController, :release
 
   end
 

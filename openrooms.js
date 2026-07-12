@@ -1,46 +1,3 @@
-const headers = {
-  "Content-Type" : "application/json",
-  "Accept" : "application/json"
-};
-
-async function makereq(url, opts) {
-  let req = await fetch(url, opts);
-  let body = await req.clone().json().catch(() => req.clone().text());
-  return [ req, req.status, body ]
-}
-
-async function makepost(url, body) {
-  let [resp, resp_status, resp_body] = await makereq(
-      url, {method : "POST", headers : headers, body : JSON.stringify(body)});
-  console.log(resp_status, resp_body);
-}
-async function makedelete(url, body) {
-  let [resp, resp_status, resp_body] = await makereq(
-      url, {method : "DELETE", headers : headers, body : JSON.stringify(body)});
-  console.log(resp_status, resp_body);
-
-}
-
-async function assert_response(path, method, status, body = {}) {
-  const url = "http://localhost:4000"
-  let resp, resp_status, resp_body;
-  if (method != "GET") {
-    [resp, resp_status, resp_body] = await makereq(url + path, {
-      method: method,
-      body: JSON.stringify(body),
-      headers: headers
-    });
-  } else {
-    [resp, resp_status, resp_body] = await makereq(url + path, {
-      method: method,
-      headers: headers
-    });
-  }
-  if (resp_status != status) {
-    throw new Error(`Error in ${path}: should be ${status} but was ${resp_status}. Body is ${JSON.stringify(resp_body)}`)
-  }
-}
-
 const tests = {
   "Test making and deleting rooms": [
     ["/groups/test1", "DELETE", 404],
@@ -68,19 +25,61 @@ const tests = {
     ["/groups/general/floor", "POST", 409, {"userId": "alice", "priority": 5}],
     ["/groups/general/floor/bob", "DELETE", 200],
   ]
+}
+
+
+const headers = {
+  "Content-Type" : "application/json",
+  "Accept" : "application/json"
+};
+
+async function makereq(url, opts) {
+  let req = await fetch(url, opts);
+  let body = await req.clone().json().catch(() => req.clone().text());
+  return [ req, req.status, body ]
+}
+
+async function makepost(url, body) {
+  let [resp, resp_status, resp_body] = await makereq(
+      url, {method : "POST", headers : headers, body : JSON.stringify(body)});
+  console.log(resp_status, resp_body);
+}
+async function makedelete(url, body) {
+  let [resp, resp_status, resp_body] = await makereq(
+      url, {method : "DELETE", headers : headers, body : JSON.stringify(body)});
+  console.log(resp_status, resp_body);
 
 }
 
-async function run_tests() {
+async function assert_response(url = "http://localhost:4000", path, method, status, body = {}) {
+  let resp, resp_status, resp_body;
+  if (method != "GET") {
+    [resp, resp_status, resp_body] = await makereq(url + path, {
+      method: method,
+      body: JSON.stringify(body),
+      headers: headers
+    });
+  } else {
+    [resp, resp_status, resp_body] = await makereq(url + path, {
+      method: method,
+      headers: headers
+    });
+  }
+  if (resp_status != status) {
+    throw new Error(`Error in ${path}: should be ${status} but was ${resp_status}. Body is ${JSON.stringify(resp_body)}`)
+  }
+}
+
+async function run_tests(url) {
   // Ensure general exists since we're using it
-  await assert_response("/groups/general", "POST", 201, {}).catch(()=>{});
+  await assert_response(url, "/groups/general", "POST", 201, {}).catch(()=>{});
   let was_errors = false;
   for (let test in tests) {
     console.log(`Running test: ${test}`);
     let output = [];
     for (const t_args of tests[test]) {
       try {
-        await assert_response(...t_args);
+        await assert_response(url, ...t_args);
         output.push(`${t_args[0]} - ${t_args[1]} - ${t_args[2]}`);
       }
       catch (e) {
@@ -134,4 +133,11 @@ async function manual_test() {
   await makepost(url + "/groups/general/floor", {"userId" : "User1"});
 }
 
-run_tests().then(() => console.log("Ran"))
+const { argv } = require('node:process');
+let url;
+if (argv.length < 3) {
+    url = "http://localhost:4000/"
+} else {
+    url = new URL(argv[2]);
+}
+run_tests(url).then(() => console.log("Ran"))
